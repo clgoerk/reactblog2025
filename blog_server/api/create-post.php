@@ -1,58 +1,90 @@
 <?php
 
-header("Access-Control-Allow-Origin: *");  // Or specify your frontend domain
+session_start();
+
+header("Access-Control-Allow-Origin: http://localhost:3000");  // frontend origin
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Credentials: true");
 header("Content-Type: application/json");
 
 require_once('../config/config.php');
 require_once('../config/database.php');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { // handle options
-    http_response_code(200);
-    exit();
-  }
-
-// retrieve the request body as a string
-$request_body = file_get_contents('php://input'); 
-
-// Decode the JSON data into a PHP array
-$data = json_decode($request_body, true);
-
-// Validate input fields with basic validation
-if (empty($data['title']) || empty($data['content']) || empty($data['author']) ) {
-    http_response_code(400);
-    echo json_encode(['message' => 'Error: Missing or empty required parameter']);
-    exit();
+// 🔒 Require authentication (same as class example)
+if (!isset($_SESSION['user'])) {
+  http_response_code(401);
+  echo json_encode(["success" => false, "message" => "Unauthorized"]);
+  exit;
 }
 
-// Validate input fields
-if (!isset($data['title']) || !isset($data['content']) || !isset($data['author']) ) {
-    http_response_code(400);
-    die(json_encode(['message' => 'Error: Missing required parameter']));
+// Handle preflight OPTIONS request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+  http_response_code(200);
+  exit();
+}
+
+// Validate required POST fields (multipart/form-data)
+if (!isset($_POST['location'], $_POST['start_time'], $_POST['end_time'])) {
+  http_response_code(400);
+  echo json_encode(['message' => 'Missing required fields']);
+  exit();
 }
 
 // Sanitize input
-$title = filter_var($data['title'], FILTER_SANITIZE_STRING);
-$content = filter_var($data['content'], FILTER_SANITIZE_STRING);
-$author = filter_var($data['author'], FILTER_SANITIZE_STRING);
+$location   = filter_var($_POST['location'], FILTER_SANITIZE_STRING);
+$start_time = filter_var($_POST['start_time'], FILTER_SANITIZE_STRING);
+$end_time   = filter_var($_POST['end_time'], FILTER_SANITIZE_STRING);
 
-// Prepare statement
-$stmt = $conn->prepare('INSERT INTO blog_posts (title, content, author) VALUES(?, ?, ?)');
-$stmt->bind_param('sss', $title, $content, $author);
+// --- Handle image upload (same as class example) ---
+$uploadDir = __DIR__ . "/uploads/";
+$imageName = "placeholder_100.jpg"; // default placeholder
 
-// Execute statement
-if ($stmt->execute()) {
-    $id = $stmt->insert_id;
-
-    // Return success response
-    http_response_code(201);
-    echo json_encode(['message' => 'Post created successfully', 'id' => $id]);
+// Ensure upload directory exists
+if (!is_dir($uploadDir)) {
+  @mkdir($uploadDir, 0755, true);
 }
-else{
-    // Return error response with more detail if possible
+
+if (!empty($_FILES['image']['name'])) {
+  $originalName   = basename($_FILES['image']['name']);
+  $targetFilePath = $uploadDir . $originalName;
+
+  // Block overwrite (exactly like class example)
+  if (file_exists($targetFilePath)) {
+    http_response_code(400);
+    echo json_encode(['message' => 'File already exists: ' . $originalName]);
+    exit();
+  }
+
+  if (!move_uploaded_file($_FILES['image']['tmp_name'], $targetFilePath)) {
     http_response_code(500);
-    echo json_encode(['message' => 'Error creating post: ' . $stmt->error]);
+    echo json_encode([
+      'message'   => 'Error uploading file',
+      'php_error' => $_FILES['image']['error'] ?? 'unknown'
+    ]);
+    exit();
+  }
+
+  $imageName = $originalName; // replace placeholder with uploaded file name
+}
+
+// Insert into database (reservations table)
+$stmt = $conn->prepare(
+  'INSERT INTO reservations (location, start_time, end_time, image_name) VALUES (?, ?, ?, ?)'
+);
+$stmt->bind_param('ssss', $location, $start_time, $end_time, $imageName);
+
+if ($stmt->execute()) {
+  $id = $stmt->insert_id;
+  http_response_code(201);
+  echo json_encode([
+    'message'   => 'Reservation created successfully',
+    'id'        => $id,
+    'imageName' => $imageName
+  ]);
+} else {
+  http_response_code(500);
+  echo json_encode(['message' => 'Error creating reservation: ' . $stmt->error]);
 }
 
 $stmt->close();
