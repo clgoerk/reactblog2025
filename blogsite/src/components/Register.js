@@ -7,6 +7,8 @@ function Register() {
   const [userName, setUserName] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("user"); // default
+  const [secretKey, setSecretKey] = useState(""); // only used for admin
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
@@ -17,26 +19,34 @@ function Register() {
     setSuccess("");
 
     try {
+      const payload = { userName, emailAddress, password, role };
+      if (role === "admin") payload.secretKey = secretKey;
+
       const res = await axios.post(
         `${process.env.REACT_APP_API_BASE_URL}/register.php`,
-        { userName, emailAddress, password }
+        payload,
+        { withCredentials: true }
       );
-      if (res.data.success) {
+
+      if (res.data?.success) {
         setSuccess("Registration successful. You can now log in.");
-        setTimeout(() => navigate("/login"), 1500);
+        setTimeout(() => navigate("/login"), 1200);
       } else {
-        setError(res.data.message);
+        setError(res.data?.message || "Registration failed");
       }
     } catch (err) {
       setError("Registration failed");
+      console.error(err);
     }
   };
 
   return (
     <div className="container mt-4">
       <h2>Register</h2>
+
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
+
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
           <label>Username</label>
@@ -48,6 +58,7 @@ function Register() {
             required
           />
         </div>
+
         <div className="mb-3">
           <label>Email Address</label>
           <input
@@ -58,6 +69,7 @@ function Register() {
             required
           />
         </div>
+
         <div className="mb-3">
           <label>Password</label>
           <input
@@ -68,8 +80,39 @@ function Register() {
             required
           />
         </div>
-        <button className="btn btn-primary" type="submit">Register</button>
+
+        <div className="mb-3">
+          <label>Role</label>
+          <select
+            className="form-control"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+            <option value="guest">Guest</option>
+          </select>
+        </div>
+
+        {role === "admin" && (
+          <div className="mb-3">
+            <label>Admin Secret</label>
+            <input
+              type="password"
+              className="form-control"
+              value={secretKey}
+              onChange={(e) => setSecretKey(e.target.value)}
+              placeholder="Enter admin secret"
+              required
+            />
+          </div>
+        )}
+
+        <button className="btn btn-primary" type="submit">
+          Register
+        </button>
       </form>
+
       <p className="mt-3">
         Already have an account? <Link to="/login">Login</Link>
       </p>
@@ -78,3 +121,4 @@ function Register() {
 }
 
 export default Register;
+

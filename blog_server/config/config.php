@@ -1,25 +1,26 @@
 <?php
-// Define configuration options
+// ---- CORS config ----
 $allowedOrigins = ['http://localhost:3000'];
-$allowedHeaders = ['Content-Type'];
 $allowedMethods = ['GET', 'POST', 'OPTIONS'];
+$allowedHeaders = ['Content-Type'];
 
-// Set headers for CORS
-$origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
-if (in_array($origin, $allowedOrigins)) {
-    header('Access-Control-Allow-Origin: ' . $origin);
+// Detect origin
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($origin, $allowedOrigins, true)) {
+  header('Access-Control-Allow-Origin: ' . $origin);
+  header('Access-Control-Allow-Credentials: true');   // needed for cookies
+  header('Vary: Origin');                             // caching correctness
 }
 
-if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])) {
-    header('Access-Control-Allow-Methods: ' . implode(', ', $allowedMethods));
+// Always advertise what we allow (esp. for preflight)
+header('Access-Control-Allow-Methods: ' . implode(', ', $allowedMethods));
+header('Access-Control-Allow-Headers: ' . implode(', ', $allowedHeaders));
+
+// Handle preflight early
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+  http_response_code(200); // or 204
+  exit();
 }
 
-if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])) {
-    $requestHeaders = explode(',', $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']);
-    $requestHeaders = array_map('trim', $requestHeaders); // Trim whitespace from headers
-    if (count(array_intersect($requestHeaders, $allowedHeaders)) == count($requestHeaders)) {
-        header('Access-Control-Allow-Headers: ' . implode(', ', $allowedHeaders));
-    }
-}
-
-?>
+// (Optional) Default content type for APIs
+header('Content-Type: application/json');

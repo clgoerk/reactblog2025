@@ -9,6 +9,7 @@ import Navbar from './components/Navbar';
 import CreatePost from './components/CreatePost';
 import Post from './components/Post';
 import PostList from './components/PostList';
+import EditPost from "./components/EditPost";
 
 function App() {
   return (
@@ -17,6 +18,16 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+
+          {/* Protected route for editing posts */}
+          <Route
+            path="/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EditPost />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected routes include Navbar */}
           <Route
